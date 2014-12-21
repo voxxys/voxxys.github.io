@@ -1,0 +1,153 @@
+---
+title: "Activity quality prediction algorithm for activity monitor data"
+output: html_document
+---
+
+To predict the outcome variable (classe) value, randomForest() function is called directly, which is more efficient than gbm method that can take hours to fit the model. The chosen algorithm provides about 99,9% accuracy. Initially the training dataset is divided into training and testing samples to estimate the out of sample error.
+
+Loading all the required libraries, setting seed for reprodicibility:
+
+```{r}
+
+library(ISLR)
+library(caret)
+library(kernlab)
+library(randomForest)
+
+set.seed(123)
+
+```
+
+
+Loading training data for initial setup:
+
+```{r}
+
+data <- read.csv("pml-training.csv")
+full <- data[,2:160]
+
+```
+
+
+Partitioning the data into training and test datasets to be able to test the prediction algorithm before applying it to the actual testing dataset:
+
+```{r}
+
+inTrain <- createDataPartition(y=full$classe, p=0.75, list=FALSE)
+training <- full[inTrain,]
+testing <- full[-inTrain,]
+dim(training)
+
+```
+
+
+Cleaning the data (subsetting the training and test datasets keeping only columns with useful data, deleting columns with mostly NA's and same factor levels):
+
+```{r}
+
+numcol = dim(training)[2]
+subset = 1:numcol
+
+for (i in 1:(numcol-1)) {
+    
+  if (class(training[,i])=="factor") {
+    training[,i] <- as.numeric(training[,i])
+    testing[,i] <- as.numeric(testing[,i])
+  }
+  
+  if ((sum(is.na(training[,i]))>0.95*dim(training)[1])|((sum(training[,i]==1)>0.95*dim(training)[1])))  {
+    subset[i] <- 0
+  }
+
+}
+  
+training <- training[,subset]
+
+```
+
+
+Training the prediction algorithm:
+
+```{r}
+
+rf <- randomForest(classe ~ ., data = training,ntree = 100)
+
+```
+
+
+Predicting the outcome for the testing set:
+
+```{r}
+
+pr <- predict(rf,testing)
+
+```
+
+
+Comparing the outcomes with known values:
+
+```{r}
+
+confusionMatrix(testing$classe,pr)
+
+```
+
+
+While the dataset was divided into training and testing samples, expected out of sample error rate (1 - accuracy) can be estimated to be :
+
+```{r}
+
+1 - confusionMatrix(testing$classe,pr)$overall[[1]]
+
+```
+
+
+Loading and preprocessing real testing data:
+
+```{r}
+
+test_data <- read.csv("pml-testing.csv")
+test_full <- test_data[,2:160]
+
+for (i in 1:(numcol-1)) {
+  
+  if (class(test_full[,i])=="factor") {
+    test_full[,i] <- as.numeric(test_full[,i])
+  }
+}
+
+```
+
+
+Training the prediction algorithm with all available training data:
+
+```{r}
+
+training <- full
+
+for (i in 1:(numcol-1)) {
+  
+  if (class(training[,i])=="factor") {
+    training[,i] <- as.numeric(training[,i])
+  }
+  
+  if ((sum(is.na(training[,i]))>0.95*dim(training)[1])|((sum(training[,i]==1)>0.95*dim(training)[1])))  {
+    subset[i] <- 0
+  }
+  
+}
+
+training <- training[,subset]
+
+rf <- randomForest(classe ~ ., data = training,ntree = 100)
+
+```
+
+
+Predicting outcomes for testing dataset:
+
+```{r}
+
+pr_2 <- predict(rf,test_full)
+
+```
